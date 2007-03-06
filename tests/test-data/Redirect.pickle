@@ -1,0 +1,11 @@
+(dp1
+(S'http://localhost/redir'
+S'/newloc'
+p2
+tp3
+I1
+s(S'http://localhost/redir/2'
+g2
+tp4
+I1
+s.

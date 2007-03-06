@@ -1,0 +1,17 @@
+(dp1
+S'http://localhost/redir/2'
+p2
+I1
+sS'http://localhost/notfound'
+p3
+I2
+sS'http://localhost/notfound/2'
+p4
+I1
+sS'http://localhost/redir'
+p5
+I1
+sS'http://localhost/'
+p6
+I2
+s.
