@@ -7,10 +7,10 @@ from vaineye.storage import PickleStorage
 
 class StatusWatcher(object):
 
-    def __init__(self, app, data_store, trackers,
+    def __init__(self, app, data_dir, trackers,
                  serialize_time=120, serialize_requests=100):
         self.app = app
-        self.storage = PickleStorage(data_store)
+        self.storage = PickleStorage(data_dir)
         if hasattr(trackers, 'items'):
             trackers = trackers.items()
         self.trackers = {}
@@ -77,3 +77,39 @@ class StatusWatcher(object):
         for tracker in self.trackers.values():
             tracker.track_request(url, status, headers)
     
+
+def make_status_watcher(app, global_conf, data_dir=None,
+                        trackers=None, serialize_time=120,
+                        serialize_requests=100):
+    """
+    Adds a status tracker.  You must give it a data_dir (where it will
+    store data), and a trackers setting.
+
+    trackers should be a series of trackers like::
+
+      trackers = tracker1
+                 tracker2
+                 name:tracker3
+
+    You can use things like ``name:tracker3`` to give alternate names
+    to a tracker.
+
+    Look in ``vaineye.trackers`` to see the available trackers.
+    """
+    if not data_dir:
+        raise ValueError('You must give a value for data_dir')
+    if isinstance(trackers, basestring):
+        t = []
+        for tracker in trackers.split():
+            if ':' in tracker:
+                name, tracker = tracker.split(':', 1)
+                name = name.strip()
+                tracker = tracker.split()
+                t.append((name, tracker))
+            else:
+                t.append(tracker)
+        trackers = t
+    return StatusWatcher(
+        app, data_dir=data_dir, trackers=trackers,
+        serialize_time=int(serialize_time),
+        serialize_requests=int(serialize_requests))

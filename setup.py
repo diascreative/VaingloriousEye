@@ -28,7 +28,8 @@ setup(name='VaingloriousEye',
         "Paste",
       ],
       entry_points="""
-      # -*- Entry points: -*-
+      [paste.filter_app_factory]
+      main = vaineye.statuswatch:make_status_watcher
       """,
       )
       
