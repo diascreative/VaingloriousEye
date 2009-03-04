@@ -69,13 +69,13 @@ class StatusWatcher(object):
             or time.time() - self.last_serialize > self.serialize_time):
             self.serialize_in_thread()
         def repl_start_response(status, headers, exc_info=None):
-            self.track_request(url, status, headers)
+            self.track_request(url, status, environ, headers)
             return start_response(status, headers, exc_info)
         return self.app(environ, repl_start_response)
 
-    def track_request(self, url, status, headers):
+    def track_request(self, url, status, environ, headers):
         for tracker in self.trackers.values():
-            tracker.track_request(url, status, headers)
+            tracker.track_request(url, status, environ, headers)
     
 
 def make_status_watcher(app, global_conf, data_dir=None,

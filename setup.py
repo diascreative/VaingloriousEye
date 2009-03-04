@@ -29,7 +29,10 @@ setup(name='VaingloriousEye',
       ],
       entry_points="""
       [paste.filter_app_factory]
-      main = vaineye.statuswatch:make_status_watcher
+      status_watcher = vaineye.statuswatch:make_status_watcher
+
+      [paste.app_factory]
+      pickleview = vaineye.pickleview:make_pickleview
       """,
       )
       

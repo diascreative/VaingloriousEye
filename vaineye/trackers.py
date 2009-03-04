@@ -19,7 +19,7 @@ class Tracker(object):
     def empty_data(self):
         return {}
 
-    def track_request(self, url, status, headers):
+    def track_request(self, url, status, environ, headers):
         raise NotImplementedError
 
     def serialize(self):
@@ -49,7 +49,7 @@ class Tracker(object):
 
 class NotFound(Tracker):
 
-    def track_request(self, url, status, headers):
+    def track_request(self, url, status, environ, headers):
         if status.startswith('404'):
             self._pending.append(url)
 
@@ -58,7 +58,7 @@ class NotFound(Tracker):
         
 class Redirect(Tracker):
 
-    def track_request(self, url, status, headers):
+    def track_request(self, url, status, environ, headers):
         if status.startswith('301'):
             self._pending.append(
                 (url, header_value(headers, 'Location')))
@@ -68,7 +68,7 @@ class Redirect(Tracker):
 
 class Hits(Tracker):
 
-    def track_request(self, url, status, headers):
+    def track_request(self, url, status, environ, headers):
         self._pending.append(url)
 
     def _merge_item(self, data, url):
@@ -79,7 +79,7 @@ def week_number(t):
 
 class HitsWeekly(Tracker):
 
-    def track_request(self, url, status, headers):
+    def track_request(self, url, status, environ, headers):
         self._pending.append((url, time.time()))
 
     def _merge_item(self, data, (url, t)):
@@ -87,3 +87,19 @@ class HitsWeekly(Tracker):
         if week not in data:
             data[week] = {}
         data[week][url] = data[week].get(url, 0)+1
+
+class HitsWeeklyByReferrer(Tracker):
+    """Track the weekly hits, but group by referrer"""
+
+    def track_request(self, url, status, environ, headers):
+        referrer = environ.get("HTTP_REFERER", None)
+        if referrer is not None:
+            self._pending.append((url, referrer, time.time()))
+
+    def _merge_item(self, data, (url, referrer, t)):
+        week = week_number(t)
+        if week not in data:
+            data[week] = {}
+        if url not in data[week]:
+            data[week][url] = {}
+        data[week][url][referrer] = data[week][url].get(referrer, 0)+1
