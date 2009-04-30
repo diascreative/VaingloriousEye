@@ -3,7 +3,7 @@ import shutil
 import time
 from vaineye import statuswatch
 from vaineye.trackers import week_number
-from paste.fixture import TestApp
+from webtest import TestApp
 
 here = os.path.dirname(__file__)
 test_data = os.path.join(here, 'test-data')
@@ -25,7 +25,7 @@ def status_app(environ, start_response):
     return [content]
 
 wsgi_app = statuswatch.StatusWatcher(
-    status_app, data_store=os.path.join(test_data),
+    status_app, data_dir=os.path.join(test_data),
     trackers=['NotFound', 'Redirect', 'Hits', 'HitsWeekly'])
 
 app = TestApp(wsgi_app)

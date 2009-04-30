@@ -26,7 +26,13 @@ setup(name='VaingloriousEye',
       zip_safe=False,
       install_requires=[
         "Paste",
-      ],
+        "WebOb",
+        ],
+      tests_require=[
+        "WebTest",
+        "nose",
+        ],
+      test_suite='nose.collector',
       entry_points="""
       [paste.filter_app_factory]
       status_watcher = vaineye.statuswatch:make_status_watcher
