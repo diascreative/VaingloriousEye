@@ -6,10 +6,6 @@ from vaineye.trackers import week_number
 from webtest import TestApp
 
 here = os.path.dirname(__file__)
-test_data = os.path.join(here, 'test-data')
-if os.path.exists(test_data):
-    shutil.rmtree(test_data)
-os.mkdir(test_data)
 
 def status_app(environ, start_response):
     path_info = environ.get('PATH_INFO', '')
@@ -25,32 +21,35 @@ def status_app(environ, start_response):
     return [content]
 
 wsgi_app = statuswatch.StatusWatcher(
-    status_app, data_dir=os.path.join(test_data),
-    trackers=['NotFound', 'Redirect', 'Hits', 'HitsWeekly'])
+    status_app, db='sqlite:///:memory:', _synchronous=True,
+    trackers=['NotFound', 'Redirect', 'Hits'])#, 'HitsWeekly'])
 
 app = TestApp(wsgi_app)
 
 def test_logs():
+    conn = wsgi_app.sql_engine.connect()
     app.get('/')
     app.get('/')
-    assert not wsgi_app.tracker('NotFound').data
-    assert wsgi_app.tracker('Hits').data == {'http://localhost/': 2}
-    week = week_number(time.time())
-    assert wsgi_app.tracker('HitsWeekly').data == {week: {'http://localhost/': 2}}
+    assert not wsgi_app.tracker('NotFound').select(conn)
+    assert dict(wsgi_app.tracker('Hits').select(conn)) == {'http://localhost/': 2}
     app.get('/notfound', status=404)
     app.get('/notfound/2', status=404)
     app.get('/notfound', status=404)
-    assert wsgi_app.tracker('NotFound').data == {
+    assert wsgi_app.tracker('NotFound').select(conn)
+    week = week_number(time.time())
+    #assert wsgi_app.tracker('HitsWeekly').data == {week: {'http://localhost/': 2}}
+    assert dict(wsgi_app.tracker('NotFound').select(conn)) == {
         'http://localhost/notfound': 2,
         'http://localhost/notfound/2': 1,
-        }
-    assert not wsgi_app.tracker('Redirect').data
+        }, wsgi_app.tracker('NotFound').select(conn)
+    assert not wsgi_app.tracker('Redirect').select(conn)
     app.get('/redir')
     app.get('/redir/2')
-    print wsgi_app.tracker('Redirect').data
+    print wsgi_app.tracker('Redirect').select(conn)
     # @@: Should the URLs be completely normalized here?  I.e., fully qualified
-    assert wsgi_app.tracker('Redirect').data == {
-        ('http://localhost/redir', '/newloc'): 1,
-        ('http://localhost/redir/2', '/newloc'): 1,
-        }
+    assert sorted(wsgi_app.tracker('Redirect').select(conn)) == [
+        (u'http://localhost/redir', u'/newloc', 1),
+        (u'http://localhost/redir/2', u'/newloc', 1),
+        ]
+
     

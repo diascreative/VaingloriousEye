@@ -27,6 +27,7 @@ setup(name='VaingloriousEye',
       install_requires=[
         "Paste",
         "WebOb",
+        "SQLAlchemy",
         ],
       tests_require=[
         "WebTest",

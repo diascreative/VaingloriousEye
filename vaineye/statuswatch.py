@@ -3,25 +3,33 @@ import threading
 import time
 from paste.request import construct_url
 from paste.util.import_string import simple_import
-from vaineye.storage import PickleStorage
+from sqlalchemy import MetaData
+from sqlalchemy import create_engine
 
 class StatusWatcher(object):
 
-    def __init__(self, app, data_dir, trackers,
-                 serialize_time=120, serialize_requests=100):
+    def __init__(self, app, db, trackers,
+                 serialize_time=120, serialize_requests=100,
+                 _synchronous=False):
         self.app = app
-        self.storage = PickleStorage(data_dir)
-        if hasattr(trackers, 'items'):
-            trackers = trackers.items()
+        self.sql_metadata = MetaData()
+        self.sql_engine = create_engine(db, echo=True)
+        if hasattr(trackers, 'values'):
+            trackers = trackers.values()
         self.trackers = {}
+        self._setting_up = True
         for tracker in trackers:
             self.add_tracker(tracker)
+        self._setting_up = False
+        self.sql_metadata.create_all(self.sql_engine)
         self.serialize_time = serialize_time
         self.serialize_requests = serialize_requests
-        self.serialize_lock = threading.Lock()
-        self.last_serialize = time.time()
+        self._synchronous = _synchronous
+        self.write_pending_lock = threading.Lock()
+        self.last_written = time.time()
         self.request_count = 0
-        atexit.register(self.serialize)
+        if not _synchronous:
+            atexit.register(self.write_pending)
 
     def add_tracker(self, tracker):
         if isinstance(tracker, tuple):
@@ -36,7 +44,10 @@ class StatusWatcher(object):
                 "Trying to add tracker %r with name %r, when there is already a "
                 "tracker (%r) with that name"
                 % (tracker, name, self.trackers[name]))
-        self.trackers[name] = tracker(self, name, self.storage)
+        self.trackers[name] = tracker(self, name, self.sql_metadata, self.sql_engine)
+        self.trackers[name].setup_database()
+        if not self._setting_up:
+            self.sql_metadata.create_all(self.sql_engine)
 
     def load_tracker(self, name):
         if '.' not in name:
@@ -46,30 +57,34 @@ class StatusWatcher(object):
     def tracker(self, name):
         return self.trackers[name]
 
-    def serialize(self):
-        if not self.serialize_lock.acquire(False):
+    def write_pending(self):
+        if not self.write_pending_lock.acquire(False):
             # Someone else is currently serializing
             return
         try:
-            self.last_serialize = time.time()
+            conn = self.sql_engine.connect()
+            self.last_written = time.time()
             self.request_counts = 0
             for tracker in self.trackers.values():
-                tracker.serialize()
+                tracker.write_pending(conn)
         finally:
-            self.serialize_lock.release()
+            self.write_pending_lock.release()
 
-    def serialize_in_thread(self):
-        t = threading.Thread(target=self.serialize)
+    def write_in_thread(self):
+        t = threading.Thread(target=self.write_pending)
         t.start()
 
     def __call__(self, environ, start_response):
         url = construct_url(environ)
         self.request_count += 1
-        if (self.request_count > self.serialize_requests
-            or time.time() - self.last_serialize > self.serialize_time):
-            self.serialize_in_thread()
+        if not self._synchronous and (
+            self.request_count > self.serialize_requests
+            or time.time() - self.last_written > self.serialize_time):
+            self.write_in_thread()
         def repl_start_response(status, headers, exc_info=None):
             self.track_request(url, status, environ, headers)
+            if self._synchronous:
+                self.write_pending()
             return start_response(status, headers, exc_info)
         return self.app(environ, repl_start_response)
 
@@ -78,7 +93,7 @@ class StatusWatcher(object):
             tracker.track_request(url, status, environ, headers)
     
 
-def make_status_watcher(app, global_conf, data_dir=None,
+def make_status_watcher(app, global_conf, db=None,
                         trackers=None, serialize_time=120,
                         serialize_requests=100):
     """
@@ -96,8 +111,8 @@ def make_status_watcher(app, global_conf, data_dir=None,
 
     Look in ``vaineye.trackers`` to see the available trackers.
     """
-    if not data_dir:
-        raise ValueError('You must give a value for data_dir')
+    if not db:
+        raise ValueError('You must give a value for db')
     if isinstance(trackers, basestring):
         t = []
         for tracker in trackers.split():
@@ -110,6 +125,6 @@ def make_status_watcher(app, global_conf, data_dir=None,
                 t.append(tracker)
         trackers = t
     return StatusWatcher(
-        app, data_dir=data_dir, trackers=trackers,
+        app, db=db, trackers=trackers,
         serialize_time=int(serialize_time),
         serialize_requests=int(serialize_requests))
