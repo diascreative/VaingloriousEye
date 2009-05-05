@@ -1,0 +1,6 @@
+<%inherit file="base.html" />
+<ul>
+% for summarizer in controller.summarizers:
+<li><a href="${req.application_url}/summary/${summarizer.name}">${summarizer.description}</a></li>
+% endfor
+</ul>

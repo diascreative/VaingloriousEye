@@ -1,0 +1,10 @@
+<%inherit file="base.html" />
+
+<table>
+% for count, url in data.popular_requests:
+  <tr>
+    <td>${count}</td>
+    <td>${url}</td>
+  </tr>
+% endfor
+</table>

@@ -28,6 +28,7 @@ setup(name='VaingloriousEye',
         "Paste",
         "WebOb",
         "SQLAlchemy",
+        "WaitForIt",
         ],
       tests_require=[
         "WebTest",
@@ -36,10 +37,10 @@ setup(name='VaingloriousEye',
       test_suite='nose.collector',
       entry_points="""
       [paste.filter_app_factory]
-      status_watcher = vaineye.statuswatch:make_status_watcher
+      main = vaineye.statuswatch:make_status_watcher
 
       [paste.app_factory]
-      pickleview = vaineye.pickleview:make_pickleview
+      stats = vaineye.view:make_vaineye_view
       """,
       )
       
