@@ -36,6 +36,9 @@ setup(name='VaingloriousEye',
         ],
       test_suite='nose.collector',
       entry_points="""
+      [console_scripts]
+      import-vaineye = vaineye.importer:main
+      
       [paste.filter_app_factory]
       main = vaineye.statuswatch:make_status_watcher
 

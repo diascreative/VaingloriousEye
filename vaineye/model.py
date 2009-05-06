@@ -1,9 +1,10 @@
 import time
 import urlparse
-from datetime import datetime
+from datetime import datetime, timedelta
+import re
 from sqlalchemy import MetaData, Table
 from sqlalchemy import Column, Integer, String, DateTime, Float
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, and_
 
 class RequestTracker(object):
 
@@ -62,10 +63,17 @@ class RequestTracker(object):
     def write_pending(self):
         conn = self.engine.connect()
         for request in self._pending:
+            if request.get('vaineye.end_time'):
+                processing_time = request['vaineye.end_time'] - request['vaineye.start_time']
+            else:
+                processing_time = None
+            date = request.get('vaineye.date')
+            if not date:
+                date = datetime.fromtimestamp(request['vaineye.start_time'])
             ins = self.table_insert.values({
                 'ip': request['REMOTE_ADDR'],
-                'date': datetime.fromtimestamp(request['vaineye.start_time']),
-                'processing_time': request['vaineye.end_time'] - request['vaineye.start_time'],
+                'date': date,
+                'processing_time': processing_time,
                 'request_method': request['REQUEST_METHOD'],
                 'scheme': request['wsgi.url_scheme'],
                 'host': request.get('HTTP_HOST'),
@@ -82,10 +90,11 @@ class RequestTracker(object):
             conn.execute(ins)
         self._pending = []
 
-    def requests_since(self, d):
+    def requests_during(self, start, end):
         conn = self.engine.connect()
         q = select([self.table],
-                   self.table.c.date >= d)
+                   and_(self.table.c.date >= start,
+                        self.table.c.date < end))
         for row in conn.execute(q):
             row = dict(row)
             url = urlparse.urlunsplit((row['scheme'],
@@ -95,3 +104,62 @@ class RequestTracker(object):
                                        ''))
             row['url'] = url
             yield row
+
+    apache_line_re = re.compile(r'''
+    (?P<ip>[\d.:a-fA-F]+)          \s+  # IP Address
+    (?P<ident>[^\s]+)              \s+  # ident (usually -)
+    (?P<user>[^\s]+)               \s+  # logged-in user (usually -)
+    \[(?P<date>[^\]]*)\]           \s+  # date
+    "(?P<method>[A-Z]+)            \s+  # Start of the request string
+    (?P<path>[^ ])+                \s+  # Requested path
+    HTTP/(?P<http_version>[\d.]*)" \s+  # The version
+    (?P<status>\d+)                \s+  # Response status version
+    (?P<bytes>\d+|-)               \s+  # Bytes in response (- is 0)
+    "(?P<referrer>[^"]*)"          \s+  # Referrer
+    "(?P<user_agent>[^"]*)"             # User-Agent
+    ''', re.VERBOSE)
+
+    apache_date_format = '%d/%b/%Y:%H:%M:%S'
+
+    def import_apache_line(self, line, default_scheme='http', default_host='localhost'):
+        match = self.apache_line_re.match(line)
+        if not match:
+            raise ValueError("Bad line, cannot parse: %r" % line)
+        d = match.groupdict()
+        date = datetime.fromtimestamp(
+            time.mktime(time.strptime(d['date'].split(None, 1)[0], self.apache_date_format)))
+        date = date + timedelta(hours=int(d['date'].split(None, 1)[1]))
+        if '?' in d['path']:
+            path, query_string = d.path.split('?', 1)
+        else:
+            path = d['path']
+            query_string = ''
+        if not d.get('bytes') or d['bytes'] == '-':
+            bytes = 0
+        else:
+            bytes = int(d['bytes'])
+        referrer = d['referrer']
+        if referrer == '-':
+            referrer = ''
+        user_agent = d['user_agent']
+        if user_agent == '-':
+            user_agent = '-'
+        request = {
+            'REMOTE_ADDR': d['ip'],
+            'vaineye.date': date,
+            'vaineye.start_time': None,
+            'vaineye.end_time': None,
+            'REQUEST_METHOD': d['method'],
+            'wsgi.url_scheme': default_scheme,
+            'HTTP_HOST': default_host,
+            'SCRIPT_NAME': '',
+            'PATH_INFO': path,
+            'QUERY_STRING': query_string,
+            'HTTP_USER_AGENT': user_agent,
+            'HTTP_REFERER': referrer,
+            'vaineye.response_code': int(d['status']),
+            'vaineye.response_bytes': bytes,
+            'vaineye.content_type': None,
+            'ip_location': None,
+            }
+        self._pending.append(request)

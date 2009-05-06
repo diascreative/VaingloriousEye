@@ -92,7 +92,8 @@ class Summary(object):
     def update_data(self):
         data = self.load_data()
         new_date = datetime.now()
-        for request in self.controller.request_tracker.requests_since(data.time_updated):
+        for request in self.controller.request_tracker.requests_during(
+            data.time_updated, new_date):
             print 'Merging', request
             self.merge_request(request, data)
         data.time_updated = new_date
