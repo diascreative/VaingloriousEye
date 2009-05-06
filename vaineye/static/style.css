@@ -1,0 +1,31 @@
+body {
+  margin: 0;
+  font-family: sans-serif;
+}
+
+h1#header {
+  background-color: #000;
+  color: #fff;
+  padding-left: 0.5em;
+}
+
+h1#header a:link, h1#header a:visited {
+  text-decoration: none;
+  color: #fff;
+}
+
+#body {
+  padding: 1em;
+}
+
+a.external:link, a.external:visited {
+  text-decoration: none;
+}
+
+a.external:hover {
+  text-decoration: underline;
+}
+
+td.url {
+  overflow: scroll;
+}

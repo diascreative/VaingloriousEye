@@ -34,9 +34,16 @@ def main(args=None, stdin=sys.stdin):
         if not index % 1000:
             sys.stdout.write('.')
             sys.stdout.flush()
-    sys.stdout.write('writing db...')
+    sys.stdout.write('writing db...\n')
     sys.stdout.flush()
-    request_tracker.write_pending()
+    def writer(i=None, total=0):
+        if i and not i % 1000:
+            sys.stdout.write('.')
+            sys.stdout.flush()
+        if i is None:
+            sys.stdout.write('write...')
+            sys.stdout.flush()
+    request_tracker.write_pending(writer)
     print 'done.'
 
 if __name__ == '__main__':

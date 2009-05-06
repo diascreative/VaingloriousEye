@@ -1,0 +1,52 @@
+<%inherit file="base.html" />
+
+<h2>Countries</h2>
+
+<img src="${country_map_url}">
+
+<table>
+  <tr>
+    <th>Count</th>
+    <th>Country</th>
+  </tr>
+% for count, (country_name, country_code) in data.countries.counts_most_frequent():
+  <tr>
+    <td>${count}</td>
+    <td>${country_name}</td>
+  </tr>
+% endfor
+</table>
+
+<h2>States</h2>
+
+<img src="${us_map_url}">
+
+<table>
+  <tr>
+    <th>Count</th>
+    <th>State</th>
+  </tr>
+% for count, state in data.states.counts_most_frequent():
+  <tr>
+    <td>${count}</td>
+    <td>${unabbreviate_state(state)}</td>
+  </tr>
+% endfor
+</table>
+
+<h2>Cities</h2>
+
+<table>
+  <tr>
+    <th>Count</th>
+    <th>City</th>
+    <th>State</th>
+  </tr>
+% for count, (state, city) in data.cities.counts_most_frequent():
+  <tr>
+    <td>${count}</td>
+    <td>${city}</td>
+    <td>${unabbreviate_state(state)}</td>
+  </tr>
+% endfor
+</table>

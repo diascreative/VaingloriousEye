@@ -1,10 +1,14 @@
 <%inherit file="base.html" />
 
 <table>
-% for count, url in data.popular_requests:
+  <tr>
+    <th>Count</th>
+    <th>URL</th>
+  </tr>
+% for count, url in data.requests.counts_most_frequent():
   <tr>
     <td>${count}</td>
-    <td>${url}</td>
+    <td><a href="${url}" target="_blank" class="external">${url}</a></td>
   </tr>
 % endfor
 </table>

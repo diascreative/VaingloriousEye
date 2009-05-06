@@ -1,6 +1,12 @@
 <%inherit file="base.html" />
-<ul>
-% for summarizer in controller.summarizers:
-<li><a href="${req.application_url}/summary/${summarizer.name}">${summarizer.description}</a></li>
+
+% for summary_class_name, summary_class in sorted(controller.summary_classes.items()):
+  <fieldset>
+  <legend>${summary_class.description}</legend>
+  ${summary_class.view_form(req.base_url)}
+  </fieldset>
 % endfor
-</ul>
+
+<form action="${req.base_url}/clear_cached" method="POST">
+<input type="submit" value="Clear Cached Data">
+</form>
