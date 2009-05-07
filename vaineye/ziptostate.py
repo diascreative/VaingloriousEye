@@ -1,6 +1,14 @@
+"""
+Converts zip codes to state codes.  Also converts state codes to state
+names.
+"""
+
 # From data at:
 # http://www.novicksoftware.com/udfofweek/Vol2/T-SQL-UDF-Vol-2-Num-48-udf_Addr_Zip5ToST.htm
 def zip_to_state(zip):
+    """Convert the zip or postal code to a state code.
+
+    This returns None if it can't be converted"""
     if isinstance(zip, basestring):
         zip = zip.split('-', 1)[0]
         try:
@@ -154,6 +162,7 @@ def zip_to_state(zip):
     return None
 
 def unabbreviate_state(abbrev):
+    """Given a state abbreviation, return the full state name"""
     return abbrev_to_state[abbrev].capitalize()
 
 state_to_abbrev = {

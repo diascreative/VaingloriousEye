@@ -1,3 +1,6 @@
+"""
+Middleware that tracks requests
+"""
 import atexit
 import threading
 import time
@@ -10,10 +13,24 @@ from sqlalchemy import create_engine
 from vaineye.model import RequestTracker
 
 class StatusWatcher(object):
+    """Middleware that tracks requests"""
 
     def __init__(self, app, db,
                  serialize_time=120, serialize_requests=100,
                  _synchronous=False):
+        """This wraps the `app` and saves data about each request.
+
+        data is stored in `vaineye.model.RequestTracker`, instantiated
+        with the `db` SQLAlchemy connection string.
+
+        Periodically data is written to the database (every
+        `serialize_time` seconds, or `serialize_requests` requests,
+        whichever comes first).  This writing happens in a background
+        thread.
+
+        For debugging purposes you can set `_synchronous` to True to
+        have requests written out every request without spawning a
+        thread."""
         self.app = app
         self.request_tracker = RequestTracker(db)
         self.serialize_time = serialize_time
@@ -26,6 +43,7 @@ class StatusWatcher(object):
             atexit.register(self.write_pending)
 
     def write_pending(self):
+        """Write all pending requests"""
         if not self.write_pending_lock.acquire(False):
             # Someone else is currently serializing
             return
@@ -37,10 +55,12 @@ class StatusWatcher(object):
             self.write_pending_lock.release()
 
     def write_in_thread(self):
+        """Write all pending requests, in a background thread"""
         t = threading.Thread(target=self.write_pending)
         t.start()
 
     def __call__(self, environ, start_response):
+        """WSGI interface"""
         self.request_count += 1
         if not self._synchronous and (
             self.request_count > self.serialize_requests

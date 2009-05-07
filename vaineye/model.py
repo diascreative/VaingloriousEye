@@ -1,3 +1,6 @@
+"""
+Model that stores and retrieves the requests from the database
+"""
 import time
 import urlparse
 from datetime import datetime, timedelta
@@ -19,8 +22,10 @@ else:
 from vaineye.ziptostate import zip_to_state
 
 class RequestTracker(object):
+    """Instances of ths track requests, both storing and fetching"""
 
     def __init__(self, db):
+        """Instantiate with the SQLAlchemy database connection string"""
         self.engine = create_engine(db)
         self.sql_metadata = MetaData()
         self.table = Table(
@@ -57,6 +62,13 @@ class RequestTracker(object):
 
     def add_request(self, environ, start_time, end_time,
                     status, response_headers):
+        """Adds one request from a WSGI environment and some data from
+        the response
+
+        This doesn't save the request to the database, but to a
+        pending list; `write_pending` writes from this list and should
+        be called periodically and at process exit.
+        """
         request = {
             'REMOTE_ADDR': environ['REMOTE_ADDR'],
             'vaineye.date': datetime.now(),
@@ -83,6 +95,7 @@ class RequestTracker(object):
         self._pending.append(request)
 
     def write_pending(self, callback=None):
+        """Write all the pending requests added by `add_request`"""
         conn = self.engine.connect()
         total = len(self._pending)
         all_values = []
@@ -139,6 +152,13 @@ class RequestTracker(object):
         'ip_dma_code': None, 'ip_area_code': None}
 
     def requests(self, query, callback=None):
+        """Returns all the requests that match the SQLAlchemy `query`
+
+        `callback` is a function called with two values
+        ``callback(row_number, total_rows)``, and at the start with
+        ``callback(None, total_rows)``.  ``total_rows`` might be -1
+        (unknown).
+        """
         conn = self.engine.connect()
         q = select([self.table],
                    query)
@@ -175,6 +195,10 @@ class RequestTracker(object):
     apache_date_format = '%d/%b/%Y:%H:%M:%S'
 
     def import_apache_line(self, line, default_scheme='http', default_host='localhost'):
+        """Import one line of an Apache common-format log file.
+
+        Apache log files do not contain the request domain or scheme,
+        so these must be provided"""
         match = self.apache_line_re.match(line)
         if not match:
             raise ValueError("Bad line, cannot parse: %r" % line)
@@ -221,6 +245,7 @@ class RequestTracker(object):
     _geoip_warned = False
 
     def add_geoip(self, request):
+        """Given a request record, add geo-ip data if possible"""
         if (not geo_ip or request.get('vaineye.ip_location')
             or not request.get('REMOTE_ADDR')):
             return

@@ -2,8 +2,6 @@
 Stat viewer app for Vainglorious Eye stats (reads the tracker's database)
 """
 
-from webob import Request, Response
-from webob import exc
 import os
 import threading
 from datetime import datetime
@@ -13,81 +11,45 @@ import fnmatch
 import re
 import urllib
 from mako.lookup import TemplateLookup
-from vaineye.model import RequestTracker
 from waitforit import WaitForIt
 from paste.urlparser import StaticURLParser
 from dateutil.parser import parse as parse_date
 from topp.utils.pretty_date import prettyDate as pretty_date
-from vaineye.ziptostate import unabbreviate_state
 from pygooglechart import MapChart
 from sqlalchemy import and_
-from paste.lint import middleware as lint
+from webob import Request, Response
+from webob import exc
+from vaineye.model import RequestTracker
+from vaineye.ziptostate import unabbreviate_state
 from vaineye.bag import Bag
-
-class Bag(object):
-    def __init__(self, items=None):
-        self._data = {}
-        if items:
-            for item in items:
-                self.add(item)
-    def add(self, item):
-        if item in self._data:
-            self._data[item] += 1
-        else:
-            self._data[item] = 1
-    def __len__(self):
-        return sum(self._data.values())
-    def __iter__(self):
-        for item, count in self._data.items():
-            for i in xrange(count):
-                yield item
-    def __contains__(self, item):
-        return item in self._data
-    def count(self, item):
-        return self._data.get(item, 0)
-    def counts(self):
-        return [(count, item) for item, count in self._data.iteritems()]
-    def counts_most_frequent(self):
-        counts = self.counts()
-        counts.sort(reverse=True)
-        return counts
-    def __repr__(self):
-        if len(self) < 20:
-            return 'Bag(%r)' % list(self)
-        else:
-            return 'Bag([%s, ...])' % ', '.join([repr(x) for x in list(self)[:20]])
-    def count_dict(self):
-        return self._data.copy()
-
-class wsgi_wrap(object):
-    def __init__(self, func):
-        self.func = func
-    def __get__(self, obj, type=None):
-        return self.__class__(self.func.__get__(obj, type))
-    def wsgi_app(self, environ, start_response):
-        req = Request(environ)
-        try:
-            resp = self.func(req)
-        except exc.HTTPException, resp:
-            pass
-        return resp(environ, start_response)
-    def __call__(self, *args, **kw):
-        return self.func(*args, **kw)
-
-class wsgi_unwrap(object):
-    def __init__(self, wsgi_app):
-        self.wsgi_app = wsgi_app
-    def __call__(self, req):
-        return self.wsgi_app
+from vaineye.helpers import wsgi_wrap, wsgi_unwrap
 
 class VaineyeView(object):
+    """
+    This is a WSGI application that displays the statistic results
+    captured and saved by RequestTracker.
+    """
 
+    # These are subclasses of Summary; this is automatically filled
+    # out later in the module:
     summary_classes = {}
 
+    # The app that serves up CSS, Javascript, etc:
     static_app = StaticURLParser(os.path.join(os.path.dirname(__file__), 'static'))
 
     def __init__(self, db, data_dir, _synchronous=False,
                  site_title='The Vainglorious Eye: '):
+        """Instantiate/configure the object.
+
+        `db` is a SQLAlchemy connection string
+
+        `data_dir` is a directory where pickle caches are kept
+
+        `_synchronous` can be set to True to avoid spawning any
+        threads (even when summaries are slow)
+
+        `site_title` is used in templates, a simple view customization
+        """
         self.request_tracker = RequestTracker(db)
         self.data_dir = data_dir
         self.lookup = TemplateLookup(directories=[os.path.join(os.path.dirname(__file__), 'templates')])
@@ -96,22 +58,17 @@ class VaineyeView(object):
         if _synchronous:
             self.view_summary = self.summary
         else:
-            self.view_summary = wsgi_unwrap(WaitForIt(lint(wsgi_wrap(self.summary).wsgi_app),
+            self.view_summary = wsgi_unwrap(WaitForIt(wsgi_wrap(self.summary).wsgi_app,
                                                       time_limit=1, poll_time=5))
 
     def __call__(self, environ, start_response):
+        """WSGI Interface"""
         req = Request(environ, charset='utf8')
         req.base_url = req.application_url
         return wsgi_wrap(self.app).wsgi_app(environ, start_response)
 
-    def render(self, template_name, req, title, **args):
-        tmpl = self.lookup.get_template(template_name)
-        args['controller'] = self
-        args['req'] = req
-        args['unabbreviate_state'] = unabbreviate_state
-        return tmpl.render(title=title, **args)
-
     def app(self, req):
+        """Main non-WSGI entry point"""
         next = req.path_info_pop() or 'index'
         try:
             meth = getattr(self, 'view_'+next)
@@ -119,10 +76,23 @@ class VaineyeView(object):
             raise exc.HTTPNotFound('No view for %r' % next).exception
         return meth(req)
 
+    def render(self, template_name, req, title, **args):
+        """Render a template.  Some variables are populated
+        automatically."""
+        tmpl = self.lookup.get_template(template_name)
+        args['controller'] = self
+        args['req'] = req
+        args['unabbreviate_state'] = unabbreviate_state
+        return tmpl.render(title=title, **args)
+
     def view_index(self, req):
+        """Simple view for /"""
         return Response(self.render('index.html', req, title='View stats'))
 
     def summary(self, req):
+        """The summary view.
+
+        This may be wrapped with WaitForIt"""
         next_name = req.path_info_pop()
         if next_name not in self.summary_classes:
             raise exc.HTTPNotFound('No summary with the name %r' % next_name).exception
@@ -131,9 +101,11 @@ class VaineyeView(object):
         return summary.app(req)
 
     def view_static(self, req):
+        """Serve static (CSS, etc) content"""
         return self.static_app
 
     def view_clear_cached(self, req):
+        """Clear all the summary pickle caches"""
         assert req.method == 'POST'
         for filename in os.listdir(self.data_dir):
             if filename.endswith('.pickle'):
@@ -141,10 +113,30 @@ class VaineyeView(object):
         raise exc.HTTPFound(location=req.base_url).exception
 
 class Summary(object):
+    """Abstract base class for summaries
 
+    Each subclass of this class summarizes something different about
+    requests.
+    """
+
+    # If this is true, all requests that result in a non-2xx response
+    # code are filtered out:
     only_200 = False
 
     def __init__(self, controller, req):
+        """Instantiate the summary per request, bound to the parent
+        (`VaineyeView`) controller
+
+        This automatically looks for the filter parameters:
+
+        `start_date`: everything after this date (inclusive)
+
+        `end_date`: everything before this date (inclusive)
+
+        `all_content`: if true, then include content like text/css
+
+        `path`: a wildcard expression to match against paths
+        """
         self.controller = controller
         assert self.name
         self.pickle_write_lock = threading.Lock()
@@ -175,6 +167,10 @@ class Summary(object):
 
     @classmethod
     def view_form(cls, base):
+        """The form displayed on the index form
+
+        `base` is the application base URL
+        """
         form = '''
         <form action="%(base)s/summary/%(name)s" method="GET">
         View date range: <input class="daterange" name="date_range" value=""><br>
@@ -190,12 +186,22 @@ class Summary(object):
         return form
 
     def merge_request(self, request, data):
+        """Abstract method; merge one request into the data
+
+        Subclasses should add the request to the data"""
         raise NotImplementedError
 
     def blank_data(self):
+        """Abstract method; create blank data
+
+        Typical subclasses instantiate `Data()` and set attributes"""
         raise NotImplementedError
 
     def filter_request(self, request, data):
+        """Return true if the request should be ignored/filtered.
+
+        This tests all the values set up in `__init__`
+        """
         if (not self.all_content
             and request['content_type']
             and request['content_type'].split(';')[0] not in self.content_types):
@@ -211,6 +217,8 @@ class Summary(object):
         if self.path_regex and not self.path_regex.match(request['path']):
             return True
 
+    # Content-types that represent "real" content, as opposed to
+    # images, etc:
     content_types = [
         'text/html',
         'application/xhtml+xml',
@@ -221,6 +229,12 @@ class Summary(object):
         ]
 
     def app(self, req):
+        """The main view entry point, displays the results of this summary
+
+        Subclasses primarily use the template (named after the `name`
+        attribute) to customize the display, and need not override
+        this method.
+        """
         if 'waitforit.progress' in req.environ:
             progress = req.environ['waitforit.progress']
             def callback(index=None, total=None):
@@ -242,9 +256,13 @@ class Summary(object):
             **self.vars(req, data)))
 
     def vars(self, req, data):
+        """Returns variables to be passed to the template
+        """
         return {}
 
     def update_data(self, callback):
+        """Updates the data, getting any unprocessed requests and
+        merging them in"""
         rt = self.controller.request_tracker
         data = self.load_data()
         end = new_date = datetime.now()
@@ -269,17 +287,22 @@ class Summary(object):
         self.save_data(data)
         return data
 
-    def ammend_query(query, rt):
+    def ammend_query(self, query, rt):
+        """Ammends the SQLAlchemy query to add any parameters that are
+        specific to the summary, e.g., to require data that the
+        summary uses."""
         return query
 
     @property
     def pickle_filename(self):
+        """The filename where the cache pickle is kept"""
         filename = os.path.join(self.controller.data_dir, self.id + '.pickle')
         if not os.path.exists(os.path.dirname(filename)):
             os.makedirs(os.path.dirname(filename))
         return filename
 
     def load_data(self):
+        """Loads and returns the cache pickle data"""
         if not os.path.exists(self.pickle_filename):
             return self.blank_data()
         fp = open(self.pickle_filename, 'rb')
@@ -288,11 +311,19 @@ class Summary(object):
         return data
 
     def save_data(self, data):
+        """Saves cache pickle data"""
         fp = open(self.pickle_filename, 'wb')
         dump(data, fp)
         fp.close()
 
     def parse_date_range(self, range):
+        """Parse the ``date_range`` variable, which is a value like:
+
+        ``mm/dd/YYYY - mm/dd/YYYY``
+        (but may leave out some of those parameters)
+
+        and returns ``(start_date, end_date)``, where either or both
+        value may be None"""
         if not range or not range.strip():
             return None, None
         if '-' not in range:
@@ -310,10 +341,13 @@ class Summary(object):
         return start, end
 
     def is_search_domain(self, domain):
+        """Is the given domain a search engine?"""
+        ## FIXME: obvious naive:
         if 'google.' in domain:
             return True
 
 class HitsSummary(Summary):
+    """Summarizes hits on a per-URL basis"""
     name = 'hits'
     description = 'Hits'
     only_200 = True
@@ -328,6 +362,8 @@ class HitsSummary(Summary):
         return data
 
 class ReferrerSummary(Summary):
+    """Summarizes referrers, using both the referrer and the
+    destination (local) URL"""
     name = 'referrers'
     description = 'Referrers'
     only_200 = True
@@ -351,10 +387,12 @@ class ReferrerSummary(Summary):
         return data
 
     def ammend_query(self, query, rt):
-        # Can't filter out local requests here
+        # Can't filter out local requests here, but can filter out
+        # no-referrer requests
         return and_(query, rt.table.c.referrer != '')
 
 class LocationSummary(Summary):
+    """Summarizes the location of visitors"""
     name = 'location'
     description = 'Location'
     only_200 = True
@@ -372,6 +410,7 @@ class LocationSummary(Summary):
             data.cities.add((state, city))
 
     def ammend_query(self, query, rt):
+        # Filter out requests without location data:
         return and_(query, rt.table.c.ip_country_code != '')
 
     def blank_data(self):
@@ -382,6 +421,8 @@ class LocationSummary(Summary):
         return data
 
     def vars(self, req, data):
+        # Sets up the variables for the google charts used in the
+        # template
         v = {}
         # 440x220 is the max size
         us_map = MapChart(440, 220)
@@ -400,6 +441,11 @@ class LocationSummary(Summary):
         return v
 
 class Data(object):
+    """
+    Holds the per-summary data.  This is basically just a dumb
+    container object, that has attributes set on it; only
+    `time_updated` is common to all instances.
+    """
     def __init__(self, time_updated=datetime(1990, 1, 1, 0, 0, 0)):
         if time_updated is None:
             time_updated = datetime.now()
@@ -414,7 +460,9 @@ def make_vaineye_view(global_conf, db=None, data_dir=None,
                        _synchronous=asbool(_synchronous),
                        site_title=site_title)
 
+# Populate VaineyeView.summary_classes:
 for name, value in globals().items():
     if (isinstance(value, type) and issubclass(value, Summary)
         and value is not Summary):
         VaineyeView.summary_classes[value.name] = value
+del name, value

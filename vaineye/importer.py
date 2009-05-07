@@ -1,3 +1,6 @@
+"""
+Imports Apache log files
+"""
 import optparse
 import sys
 from vaineye.model import RequestTracker
