@@ -452,13 +452,42 @@ class Data(object):
         self.time_updated = time_updated
 
 def make_vaineye_view(global_conf, db=None, data_dir=None,
-                      _synchronous=False, site_title='The Vainglorious Eye: '):
+                      _synchronous=False, site_title='The Vainglorious Eye: ',
+                      htpasswd=None):
+    """Create the Vaineye viewer
+
+    You must give a `db` parameter, a SQLAlchemy connection string
+    (like ``sqlite:////path/to/file.db``)
+
+    You must give a `data_dir` parameter, a location where cache files
+    can be kept.
+
+    If you give `htpasswd`, it should be the name of a file created
+    with the ``htpasswd`` command.  Only users listed in this file
+    will be allowed to view this application.
+    """
     assert db, 'You must give a db parameter'
     assert data_dir, 'You must give a data_dir parameter'
     from paste.deploy.converters import asbool
-    return VaineyeView(db=db, data_dir=data_dir,
-                       _synchronous=asbool(_synchronous),
-                       site_title=site_title)
+    app = VaineyeView(db=db, data_dir=data_dir,
+                      _synchronous=asbool(_synchronous),
+                      site_title=site_title)
+    if htpasswd:
+        if not os.path.exists(htpasswd):
+            raise ValueError('The htpasswd file %r does not exist' % htpasswd)
+        from paste.auth.form import AuthFormHandler
+        app = AuthFormHandler(app, CheckHtpasswd(htpasswd))
+    return app
+
+class CheckHtpasswd(object):
+    def __init__(self, filename):
+        self.filename = filename
+    def __call__(self, environ, username, password):
+        from vaineye.htpasswd import check_password, NoSuchUser
+        try:
+            return check_password(username, password, self.filename)
+        except NoSuchUser:
+            return False
 
 # Populate VaineyeView.summary_classes:
 for name, value in globals().items():
