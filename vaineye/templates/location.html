@@ -1,6 +1,15 @@
 <%inherit file="base.html" />
 
-<h2>Countries</h2>
+<a name="top"></a>
+
+<div>
+  <a href="#countries">Countries</a>
+  | <a href="#states">States</a>
+  | <a href="#cities">Cities</a>
+  | <a href="${req.application_url}">Stats Home</a>
+</div>
+
+<h2><a name="countries">Countries</a> <a href="#top" class="nav-link">top</a></h2>
 
 <img src="${country_map_url}">
 
@@ -11,13 +20,13 @@
   </tr>
 % for count, (country_name, country_code) in data.countries.counts_most_frequent():
   <tr>
-    <td>${count}</td>
+    <td class="count">${count | fnum}</td>
     <td>${country_name}</td>
   </tr>
 % endfor
 </table>
 
-<h2>States</h2>
+<h2><a name="states">States</a> <a href="#top" class="nav-link">top</a></h2>
 
 <img src="${us_map_url}">
 
@@ -28,13 +37,13 @@
   </tr>
 % for count, state in data.states.counts_most_frequent():
   <tr>
-    <td>${count}</td>
+    <td class="count">${count | fnum}</td>
     <td>${unabbreviate_state(state)}</td>
   </tr>
 % endfor
 </table>
 
-<h2>Cities</h2>
+<h2><a name="cities">Cities</a> <a href="#top" class="nav-link">top</a></h2>
 
 <table>
   <tr>
@@ -44,7 +53,7 @@
   </tr>
 % for count, (state, city) in data.cities.counts_most_frequent():
   <tr>
-    <td>${count}</td>
+    <td class="count">${count | fnum}</td>
     <td>${city}</td>
     <td>${unabbreviate_state(state)}</td>
   </tr>

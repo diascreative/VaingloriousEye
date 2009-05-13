@@ -1,4 +1,5 @@
 from webob import Request
+from webob import exc
 
 class wsgi_wrap(object):
     """
@@ -30,3 +31,9 @@ class wsgi_unwrap(object):
         self.wsgi_app = wsgi_app
     def __call__(self, req):
         return self.wsgi_app
+
+def fnum(n):
+    n = ''.join(reversed(str(n)))
+    return ''.join(reversed(','.join(
+        [n[i:i+3] for i in range(0, len(n), 3)])))
+    

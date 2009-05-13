@@ -26,6 +26,15 @@ a.external:hover {
   text-decoration: underline;
 }
 
+a.nav-link {
+  font-size: small;
+}
+
 td.url {
   overflow: scroll;
+}
+
+td.count {
+  text-align: right;
+  padding-right: 1em;
 }

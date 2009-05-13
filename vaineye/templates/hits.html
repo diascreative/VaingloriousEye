@@ -7,7 +7,7 @@
   </tr>
 % for count, url in data.requests.counts_most_frequent():
   <tr>
-    <td>${count}</td>
+    <td class="count">${count | fnum}</td>
     <td><a href="${url}" target="_blank" class="external">${url}</a></td>
   </tr>
 % endfor
