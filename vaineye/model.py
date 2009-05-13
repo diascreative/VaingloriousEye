@@ -32,29 +32,30 @@ class RequestTracker(object):
             'requests', self.sql_metadata,
             Column('id', Integer, primary_key=True),
             Column('ip', String(15)),
-            Column('date', DateTime),
+            Column('date', DateTime, index=True),
             Column('processing_time', Float),
-            Column('request_method', String(15)),
-            Column('scheme', String),
-            Column('host', String),
-            Column('path', String),
+            Column('request_method', String(15), index=True),
+            Column('scheme', String(10), index=True),
+            Column('host', String(100), index=True),
+            Column('path', String(250), index=True),
             Column('query_string', String),
             Column('user_agent', String),
-            Column('referrer', String),
-            Column('response_code', Integer),
+            Column('referrer', String(250), index=True),
+            Column('response_code', Integer, index=True),
             Column('response_bytes', Integer),
-            Column('content_type', String),
-            Column('ip_country_code', String),
+            Column('content_type', String(200), index=True),
+            Column('ip_country_code', String(100), index=True),
             Column('ip_country_code3', String), # ?
             Column('ip_country_name', String), # Redundant?
             Column('ip_region', String),
-            Column('ip_city', String),
-            Column('ip_postal_code', String),
+            Column('ip_city', String(250), index=True),
+            Column('ip_postal_code', String(50), index=True),
             Column('ip_latitude', Float), # String?
             Column('ip_longitude', Float), # String?
             Column('ip_dma_code', Integer), # ?
             Column('ip_area_code', Integer),
-            Column('ip_state', String(2)),
+            ## FIXME: redundant with ip_region:
+            Column('ip_state', String(2), index=True),
             )
         self.table_insert = self.table.insert()
         self.sql_metadata.create_all(self.engine)
@@ -158,14 +159,19 @@ class RequestTracker(object):
         ``callback(row_number, total_rows)``, and at the start with
         ``callback(None, total_rows)``.  ``total_rows`` might be -1
         (unknown).
+
+        If `count` is true, then first there will be a count to see
+        how many rows will be returned.
         """
         conn = self.engine.connect()
         q = select([self.table],
                    query)
         result = conn.execute(q)
-        total = result.rowcount
+        total = [None]
+        def total_callback():
+            total[0] = list(conn.execute(q.count()))[0][0]
         if callback:
-            callback(None, total)
+            callback(None, None, total_callback)
         for index, row in enumerate(result):
             row = dict(row)
             url = urlparse.urlunsplit((row['scheme'],
@@ -175,7 +181,7 @@ class RequestTracker(object):
                                        ''))
             row['url'] = url
             if callback:
-                callback(index, total)
+                callback(index, total[0], total_callback)
             yield row
 
     apache_line_re = re.compile(r'''
@@ -249,10 +255,15 @@ class RequestTracker(object):
         if (not geo_ip or request.get('vaineye.ip_location')
             or not request.get('REMOTE_ADDR')):
             return
+        start = int(request['REMOTE_ADDR'].split('.', 1)[0])
+        if start in (127, 10, 192):
+            return
         try:
             rec = geo_ip.record_by_addr(request['REMOTE_ADDR'])
-        except SystemError:
+        except SystemError, e:
             if not self._geoip_warned:
+                import sys
+                print >> sys.stderr, 'Error: %s (for IP: %s)' % (e, request['REMOTE_ADDR'])
                 print >> sys.stderr, 'You must get this:'
                 print >> sys.stderr, 'http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz'
                 print >> sys.stderr, 'Per instructions: http://www.maxmind.com/app/installation?city=1'

@@ -22,7 +22,7 @@ from webob import exc
 from vaineye.model import RequestTracker
 from vaineye.ziptostate import unabbreviate_state
 from vaineye.bag import Bag
-from vaineye.helpers import wsgi_wrap, wsgi_unwrap
+from vaineye.helpers import wsgi_wrap, wsgi_unwrap, fnum
 
 class VaineyeView(object):
     """
@@ -59,7 +59,7 @@ class VaineyeView(object):
             self.view_summary = self.summary
         else:
             self.view_summary = wsgi_unwrap(WaitForIt(wsgi_wrap(self.summary).wsgi_app,
-                                                      time_limit=1, poll_time=5))
+                                                      time_limit=10, poll_time=5))
 
     def __call__(self, environ, start_response):
         """WSGI Interface"""
@@ -83,6 +83,7 @@ class VaineyeView(object):
         args['controller'] = self
         args['req'] = req
         args['unabbreviate_state'] = unabbreviate_state
+        args['fnum'] = fnum
         return tmpl.render(title=title, **args)
 
     def view_index(self, req):
@@ -237,13 +238,20 @@ class Summary(object):
         """
         if 'waitforit.progress' in req.environ:
             progress = req.environ['waitforit.progress']
-            def callback(index=None, total=None):
+            def callback(index=None, total=None, total_callback=None):
+                if total is None and index > 1000:
+                    total = total_callback()
                 if index is None:
                     progress['message'] = 'Saving'
                 else:
                     index += 1
                     if not index % 100:
-                        progress['message'] = 'Reviewed %i requests' % index
+                        if not total or total == -1:
+                            progress['message'] = 'Reviewed %s requests' % fnum(index)
+                        else:
+                            progress['message'] = 'Reviewed %s/%s requests' % (fnum(index), fnum(total))
+                    if total and total != -1:
+                        progress['percent'] = 100*index/total
         else:
             callback = None
         data = self.update_data(callback)
