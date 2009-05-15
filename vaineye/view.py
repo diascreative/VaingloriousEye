@@ -37,7 +37,7 @@ class VaineyeView(object):
     # The app that serves up CSS, Javascript, etc:
     static_app = StaticURLParser(os.path.join(os.path.dirname(__file__), 'static'))
 
-    def __init__(self, db, data_dir, _synchronous=False,
+    def __init__(self, db, data_dir, table_prefix='', _synchronous=False,
                  site_title='The Vainglorious Eye: '):
         """Instantiate/configure the object.
 
@@ -50,7 +50,7 @@ class VaineyeView(object):
 
         `site_title` is used in templates, a simple view customization
         """
-        self.request_tracker = RequestTracker(db)
+        self.request_tracker = RequestTracker(db, table_prefix=table_prefix)
         self.data_dir = data_dir
         self.lookup = TemplateLookup(directories=[os.path.join(os.path.dirname(__file__), 'templates')])
         self._synchronous = _synchronous
@@ -511,7 +511,7 @@ class Data(object):
             time_updated = datetime.now()
         self.time_updated = time_updated
 
-def make_vaineye_view(global_conf, db=None, data_dir=None,
+def make_vaineye_view(global_conf, db=None, table_prefix='', data_dir=None,
                       _synchronous=False, site_title='The Vainglorious Eye: ',
                       htpasswd=None):
     """Create the Vaineye viewer
@@ -529,7 +529,7 @@ def make_vaineye_view(global_conf, db=None, data_dir=None,
     assert db, 'You must give a db parameter'
     assert data_dir, 'You must give a data_dir parameter'
     from paste.deploy.converters import asbool
-    app = VaineyeView(db=db, data_dir=data_dir,
+    app = VaineyeView(db=db, table_prefix=table_prefix, data_dir=data_dir,
                       _synchronous=asbool(_synchronous),
                       site_title=site_title)
     if htpasswd:

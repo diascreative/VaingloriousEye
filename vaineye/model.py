@@ -38,16 +38,16 @@ class RequestTracker(object):
             Column('scheme', String(10), index=True),
             Column('host', String(100), index=True),
             Column('path', String(250), index=True),
-            Column('query_string', String),
-            Column('user_agent', String),
+            Column('query_string', String(250)),
+            Column('user_agent', String(250)),
             Column('referrer', String(250), index=True),
             Column('response_code', Integer, index=True),
             Column('response_bytes', Integer),
             Column('content_type', String(200), index=True),
             Column('ip_country_code', String(100), index=True),
-            Column('ip_country_code3', String), # ?
-            Column('ip_country_name', String), # Redundant?
-            Column('ip_region', String),
+            Column('ip_country_code3', String(100)), # ?
+            Column('ip_country_name', String(100)), # Redundant?
+            Column('ip_region', String(150)),
             Column('ip_city', String(250), index=True),
             Column('ip_postal_code', String(50), index=True),
             Column('ip_latitude', Float), # String?
