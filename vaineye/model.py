@@ -24,12 +24,12 @@ from vaineye.ziptostate import zip_to_state
 class RequestTracker(object):
     """Instances of ths track requests, both storing and fetching"""
 
-    def __init__(self, db):
+    def __init__(self, db, table_prefix=''):
         """Instantiate with the SQLAlchemy database connection string"""
         self.engine = create_engine(db)
         self.sql_metadata = MetaData()
         self.table = Table(
-            'requests', self.sql_metadata,
+            table_prefix+'requests', self.sql_metadata,
             Column('id', Integer, primary_key=True),
             Column('ip', String(15)),
             Column('date', DateTime, index=True),

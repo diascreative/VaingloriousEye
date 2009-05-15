@@ -19,13 +19,19 @@ parser.add_option(
     help='The default value for the scheme (default "http")',
     default='http')
 
+parser.add_option(
+    '--table-prefix',
+    metavar='PREFIX',
+    help='The prefix to prepend on the table(s) created by the system',
+    default='')
+
 def main(args=None, stdin=sys.stdin):
     if args is None:
         args = sys.argv[1:]
     options, args = parser.parse_args(args)
     if len(args) < 1:
         parser.error('You must give a DB_CONNECTION string')
-    request_tracker = RequestTracker(args[0])
+    request_tracker = RequestTracker(args[0], options.table_prefix)
     done = False
     while not done:
         done = True

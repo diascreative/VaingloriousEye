@@ -15,7 +15,7 @@ from vaineye.model import RequestTracker
 class StatusWatcher(object):
     """Middleware that tracks requests"""
 
-    def __init__(self, app, db,
+    def __init__(self, app, db, table_prefix='',
                  serialize_time=120, serialize_requests=100,
                  _synchronous=False):
         """This wraps the `app` and saves data about each request.
@@ -32,7 +32,7 @@ class StatusWatcher(object):
         have requests written out every request without spawning a
         thread."""
         self.app = app
-        self.request_tracker = RequestTracker(db)
+        self.request_tracker = RequestTracker(db, table_prefix=table_prefix)
         self.serialize_time = serialize_time
         self.serialize_requests = serialize_requests
         self._synchronous = _synchronous
@@ -80,7 +80,7 @@ class StatusWatcher(object):
             return start_response(status, headers, exc_info)
         return self.app(environ, repl_start_response)
 
-def make_status_watcher(app, global_conf, db=None,
+def make_status_watcher(app, global_conf, db=None, table_prefix='',
                         serialize_time=120,
                         serialize_requests=100,
                         _synchronous=False):
@@ -92,7 +92,7 @@ def make_status_watcher(app, global_conf, db=None,
         raise ValueError('You must give a value for db')
     from paste.deploy.converters import asbool
     return StatusWatcher(
-        app, db=db,
+        app, db=db, table_prefix=table_prefix,
         serialize_time=int(serialize_time),
         serialize_requests=int(serialize_requests),
         _synchronous=asbool(_synchronous))
