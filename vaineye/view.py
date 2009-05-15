@@ -376,12 +376,64 @@ class ReferrerSummary(Summary):
     description = 'Referrers'
     only_200 = True
 
+    def __init__(self, controller, req):
+        super(ReferrerSummary, self).__init__(controller, req)
+        self.minimum_count = int(req.params.get('minimum_count') or '0')
+        if self.minimum_count > 1:
+            self.description += ' with more than %s hits' % self.minimum_count
+        self.by_domain = bool(req.params.get('by_domain'))
+        if self.by_domain:
+            self.id += '_by-domain'
+            self.description += ' by domains'
+        self.no_ip = bool(req.params.get('no_ip'))
+        if self.no_ip:
+            self.id += '_no-ip'
+            self.description += ' excluding IPs'
+
+    @classmethod
+    def view_form(cls, base):
+        """The form displayed on the index form
+
+        `base` is the application base URL
+        """
+        form = '''
+        <form action="%(base)s/summary/%(name)s" method="GET">
+        View date range: <input class="daterange" name="date_range" value=""><br>
+        <label for="hits-all_content">
+        Include images etc: <input type="checkbox" name="all_content" id="hits-all_content">
+        </label>
+        <br>
+        Restrict to path (wildcards OK):
+        <input type="text" name="path" style="width: 20em"><br>
+        <label for="referrer-minimum">
+        Minimum number of referrals to display:
+        <input type="text" name="minimum_count" value="1" id="referrer-minimum">
+        </label> <br>
+        <label for="referrer-domains">
+        Show referrers only by domain:
+        <input type="checkbox" name="by_domain" id="referrer-domains">
+        </label> <br>
+        <label for="referrer-no-ip">
+        Exclude IP referrers (only allow domains):
+        <input type="checkbox" name="no_ip" id="referrer-no-ip">
+        </label> <br>
+        <input type="submit" value="View %(description)s">
+        </form>
+        ''' % dict(base=base, description=cls.description, name=cls.name)
+        return form
+
+    _no_ip_regex = re.compile(r'[0-9:\.]+$')
+
     def merge_request(self, request, data):
         referrer = request['referrer']
         if not referrer.strip():
             return
-        url = request['url']
         ref_domain = urlparse.urlsplit(referrer)[1]
+        if self.no_ip and self._no_ip_regex.match(ref_domain):
+            return
+        if self.by_domain:
+            referrer = 'http://' + ref_domain
+        url = request['url']
         if self.is_search_domain(ref_domain):
             return
         url_domain = urlparse.urlsplit(url)[1]

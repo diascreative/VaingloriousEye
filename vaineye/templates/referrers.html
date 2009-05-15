@@ -7,10 +7,12 @@
     <th>Destination</th>
   </tr>
 % for count, (referrer, url) in data.referrers.counts_most_frequent():
+%   if summary.minimum_count <= count:
   <tr>
     <td style="width: 10%" class="count">${fnum(count)}</td>
     <td style="width: 55%" class="url"><a href="${referrer}" target="_blank" class="external">${referrer.split('?')[0]}</a></td>
     <td style="width: 35%" class="url"><a href="${url}" target="_blank" class="external">${url}</a></td>
   </tr>
+%   endif
 % endfor
 </table>
