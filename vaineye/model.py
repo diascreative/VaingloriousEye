@@ -8,8 +8,8 @@ import re
 import os
 import mimetypes
 from sqlalchemy import MetaData, Table
-from sqlalchemy import Column, Integer, String, DateTime, Float
-from sqlalchemy import create_engine, select, and_
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float
+from sqlalchemy import create_engine, select, and_, alias, func
 try:
     import GeoIP
 except ImportError:
@@ -26,7 +26,7 @@ class RequestTracker(object):
 
     def __init__(self, db, table_prefix=''):
         """Instantiate with the SQLAlchemy database connection string"""
-        self.engine = create_engine(db)
+        self.engine = create_engine(db, pool_recycle=3600)
         self.sql_metadata = MetaData()
         self.table = Table(
             table_prefix+'requests', self.sql_metadata,
@@ -39,8 +39,8 @@ class RequestTracker(object):
             Column('host', String(100), index=True),
             Column('path', String(250), index=True),
             Column('query_string', String(250)),
-            Column('user_agent', String(250)),
-            Column('referrer', String(250), index=True),
+            Column('user_agent', Text),
+            Column('referrer', Text, index=True),
             Column('response_code', Integer, index=True),
             Column('response_bytes', Integer),
             Column('content_type', String(200), index=True),
@@ -169,7 +169,8 @@ class RequestTracker(object):
         result = conn.execute(q)
         total = [None]
         def total_callback():
-            total[0] = list(conn.execute(q.count()))[0][0]
+            count_query = select([func.count('*')], query)
+            total[0] = list(conn.execute(count_query))[0][0]
         if callback:
             callback(None, None, total_callback)
         for index, row in enumerate(result):

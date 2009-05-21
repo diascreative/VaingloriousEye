@@ -278,7 +278,7 @@ class Summary(object):
         if self.end_date and self.end_date < end:
             end = self.end_date
         if self.start_date and self.start_date > start:
-            start = self.start_time
+            start = self.start_date
         query = and_(rt.table.c.date >= start,
                      rt.table.c.date < end)
         if self.only_200:
@@ -536,8 +536,22 @@ def make_vaineye_view(global_conf, db=None, table_prefix='', data_dir=None,
         if not os.path.exists(htpasswd):
             raise ValueError('The htpasswd file %r does not exist' % htpasswd)
         from paste.auth.form import AuthFormHandler
-        app = AuthFormHandler(app, CheckHtpasswd(htpasswd))
+        from paste.auth.cookie import AuthCookieHandler
+        app = AuthCookieHandler(AuthFormHandler(app, CheckHtpasswd(htpasswd)),
+                                secret=make_secret())
     return app
+
+def make_secret(filename='/tmp/vaineye-secret.txt'):
+    if not os.path.exists(filename):
+        import random
+        secret = ''.join([hex(random.randint(0, 255))[2:] for i in range(10)])
+        f = open(filename, 'wb')
+        f.write(secret)
+    else:
+        f = open(filename, 'rb')
+        secret = f.read().strip()
+        f.close()
+    return secret
 
 class CheckHtpasswd(object):
     def __init__(self, filename):

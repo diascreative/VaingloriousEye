@@ -25,12 +25,19 @@ parser.add_option(
     help='The prefix to prepend on the table(s) created by the system',
     default='')
 
+parser.add_option(
+    '-b', '--batch',
+    metavar='COUNT',
+    help='The number of entries to insert at once',
+    default='240000')
+
 def main(args=None, stdin=sys.stdin):
     if args is None:
         args = sys.argv[1:]
     options, args = parser.parse_args(args)
     if len(args) < 1:
         parser.error('You must give a DB_CONNECTION string')
+    insert_count = int(options.batch)
     request_tracker = RequestTracker(args[0], options.table_prefix)
     done = False
     while not done:
@@ -46,7 +53,7 @@ def main(args=None, stdin=sys.stdin):
             if not index % 1000:
                 sys.stdout.write('.')
                 sys.stdout.flush()
-            if index > 240000:
+            if index > insert_count:
                 done = False
                 break
         sys.stdout.write('writing db...\n')
