@@ -111,6 +111,7 @@ class RequestTracker(object):
             if not date:
                 date = datetime.fromtimestamp(request['vaineye.start_time'])
             self.add_geoip(request)
+            self.encode_request(request)
             values = {
                 'ip': request['REMOTE_ADDR'],
                 'date': date,
@@ -142,8 +143,21 @@ class RequestTracker(object):
             ins = self.table_insert.values(values)
         if callback:
             callback()
-        conn.execute(self.table_insert, all_values)
+        try:
+            conn.execute(self.table_insert, all_values)
+        except Exception, e:
+            # This query can result in brutally large error messages
+            msg = str(e)
+            if len(msg) > 80:
+                msg = str(e.__class__)
+                raise Exception('Error in insert: %s' % msg)
+            raise
         self._pending = []
+
+    def encode_request(self, request):
+        for key, value in request.items():
+            if isinstance(value, str):
+                request[key] = value.decode('utf8', 'replace')
 
     _empty_ip_location = {
         'ip_country_code': None, 'ip_country_code3': None,
