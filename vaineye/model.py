@@ -40,7 +40,7 @@ class RequestTracker(object):
             Column('path', String(250), index=True),
             Column('query_string', String(250)),
             Column('user_agent', Text),
-            Column('referrer', Text, index=True),
+            Column('referrer', String(250), index=True),
             Column('response_code', Integer, index=True),
             Column('response_bytes', Integer),
             Column('content_type', String(200), index=True),
