@@ -33,6 +33,7 @@ setup(name='VaingloriousEye',
         "topp.utils",
         "Mako",
         "pygooglechart",
+        "pygeoip",
         ],
       extras_require={
         'full': ['PasteScript', 'weberror'],
