@@ -11,14 +11,15 @@ from sqlalchemy import MetaData, Table
 from sqlalchemy import Column, Integer, String, Text, DateTime, Float
 from sqlalchemy import create_engine, select, and_, alias, func
 try:
-    import GeoIP
+    import pygeoip
 except ImportError:
     import sys
-    sys.stderr.write('Could not import GeoIP')
+    sys.stderr.write('Could not import pygeoip')
     geo_ip = None
 else:
-    geo_ip = GeoIP.open(os.path.join(os.path.dirname(__file__), 'GeoLiteCity.dat'),
-                        GeoIP.GEOIP_STANDARD)
+    geo_ip = pygeoip.GeoIP(os.path.join(os.path.dirname(__file__),
+                                        'GeoLiteCity.dat'))
+                        
 from vaineye.ziptostate import zip_to_state
 
 class RequestTracker(object):
@@ -283,6 +284,8 @@ class RequestTracker(object):
                 print >> sys.stderr, 'http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz'
                 print >> sys.stderr, 'Per instructions: http://www.maxmind.com/app/installation?city=1'
                 self._geoip_warned = True
+            return
+        if not rec:
             return
         if rec.get('postal_code'):
             state = zip_to_state(rec['postal_code'])
